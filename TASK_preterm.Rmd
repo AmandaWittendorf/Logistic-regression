@@ -1,0 +1,313 @@
+---
+title: "TASK (dataset: preterm)"
+author: "Amanda Wittendorf"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r Pre-setting_plots, message=FALSE, warning=FALSE, include=FALSE}
+# PRE-SETTING FOR THEMES IN PLOTS 
+library(ggplot2)
+
+standard_tema <- theme_minimal(base_size = 11, base_family = "sans") + 
+  theme(
+    plot.title = element_text(face = "bold", 
+                              size = rel(1.2), 
+                              color = "#333333"), 
+    plot.subtitle = element_text(face = "italic", 
+                                 size = rel(0.95), 
+                                 color = "#555555"), 
+    axis.title = element_text(size = rel(0.9)), 
+    axis.text = element_text(size = rel(0.85)), 
+    legend.position = "bottom"
+  )
+
+# Set as global standard-theme
+theme_set(standard_tema)
+```
+
+## 1. DESKRIPTION ON THE DATASET
+
+The dataset is from the pack `statistisk` and contains measurements gestational age in whole weeks. More specifically: 
+
+- $\text{gestage}$:   gestational age in whole weeks
+
+- $\text{age}$:       Maternal age (year)
+
+- $\text{parity}$:    The number of which a mother has given birth; primiparous is defined as a first time mother while multiparous is defined as women who have given birth before (primipara / multipara)
+
+- $\text{year}$:      Year of birth 
+
+- $\text{smoker}$:    mothers smoking status (Yes / No)
+
+- $\text{preterm}$:   preterm birth (Yes / No)
+
+- $\text{sex}$:       gender (1 = male, 2 = female)
+
+- $\text{paritygrp}$: Categorization of the variable parity
+
+- $\text{age30}$:     Maternal age, centered at 30 year old (year)
+
+```{r dataset, message=FALSE, include=FALSE}
+library(statistik)
+
+preterm <- preterm
+```
+
+
+## 2. MULTIPLE LOGISTIC REGRESSION MODEL
+
+The purpose of this section is to evaluate what happens when using a factor as an outcome. When doing so `glm()` treats the first category as a 'non-event' and the remaining categories as an 'event'. It is therefore important to know and choose the relevant event of its factor 
+
+```{r view_categorize, include=FALSE}
+# Print event for the variable 'preterm'
+preterm |> 
+  pull(preterm) |> levels()
+```
+To construct a model for the odds of preterm birth it's important to set the output-reference correct: 
+
+- *Yes:* Odds of full-term / non-preterm birth 
+
+- *No:* Odds of preterm birth
+
+Therefore, *the correct reference is no*. 
+
+```{r set_reference, include=FALSE}
+preterm <- preterm |> 
+  mutate(preterm = factor(preterm),
+         preterm = fct_relevel(preterm, "No"),
+         
+         smoker = factor(smoker),
+         smoker = fct_relevel(smoker, "No"),
+         
+         sex = factor(sex),
+         sex = fct_relevel(sex, "boy"),
+         
+         paritygrp = factor(paritygrp),
+         paritygrp = fct_relevel(paritygrp, "1")
+         )
+```
+
+### 2.1. ASSOCIATION BETWEEN PRETERM BIRTH AND MATERNAL AGE ADJUSTED FOR PARITY, SMOKE STATUS AND GENDER. 
+
+**The model**
+$$\text{preterm} = \beta_\text{0} + \beta_\text{1} \cdot \text{age} + \beta_\text{2} \cdot \text{paritygrp} + \beta_\text{3} \cdot \text{smoker} + \beta_\text{4} \cdot \text{sex}$$
+```{r regression_2.1, message=FALSE, warning=FALSE, include=FALSE}
+table_1 <- list(
+  "Model, age" = glm(preterm ~ age + paritygrp + smoker + sex, 
+                data = preterm, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame(),
+  "Model, centeret" = glm(preterm ~ age30 + paritygrp + smoker + sex, 
+                data = preterm, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 1: Multiple logistic regression") |> 
+  select("Table 1: Multiple logistic regression" = Parameter, 
+         Estimate = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+```
+```{r table_2.1, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(stargazer)
+
+## Models
+model   <- glm(preterm ~ age + paritygrp + smoker + sex, 
+                data = preterm, family = binomial)
+model_cent   <- glm(preterm ~ age30 + paritygrp + smoker + sex, 
+                data = preterm, family = binomial)
+
+## Transforming from log-odds to odds
+OR_vector <- exp(coef(model))
+CI_vector <- exp(confint(model))
+p_values  <- summary(model)$coefficients[, 4]
+
+OR_center <- exp(coef(model_cent))
+CI_center <- exp(confint(model_cent))
+p_center  <- summary(model_cent)$coefficients[, 4]
+
+## Table
+stargazer(model, model_cent,
+          type = "html",                  
+          coef = list(OR_vector, OR_center), 
+          title = "Table 1: Association between preterm birth and maternal age adjusted for parity, smoker status and gender",
+          ci = TRUE,                      
+          ci.custom = list(CI_vector, CI_center),    
+          p = list(p_values, p_center),             
+          covariate.labels = c("Maternal age (year)", "Centeret maternal age (30 year)", "Nulliparaous (no children)", "Multiparaous (>=2)",  "Smoker (ref. = No)", "Gender (ref. = Boy)", "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          keep.stat = c("n"),
+          notes = c("Preterm birth (ref. = no); Maternal age (year); Parity (ref. = primiparous); Smoker status (ref. = no); Gender (ref. = Boy)"),
+          notes.append = TRUE,
+          notes.align = "l"
+)
+```
+**INTREPETATION**
+
+The difference between the two models are, that (1) contains non-centeret maternal age, and (2) contains maternal age centeret at 30 years of age. Table 1 shows, that the estimates don't change when centering the variable. 
+
+One of the reasons why this happens may be do to the fact, that the dataset includes information on nulliparaous women. These don't have a maternal age and therefore their value at this parameter is NA. 
+
+**Reference group:**
+Represents a non-smoking, primiparous woman (1 previous child) with a baseline maternal age of 0 years, who gives birth to a non-pretermed boy.
+
+**Intercept:** 
+The statistically significant odds for having preterm birth ($\text{ptd}$) for the reference group - this is not of biological meaning because of the maternal age. 
+
+**Maternal age (years)**
+For each year the maternal age increases, the odds of having a preterm birth increases by a factor of  `r table_1$Odds[2]` (`r table_1$CI_low[2]`; `r table_1$CI_high[2]`, p`r table_1$p[2]`), holding all other variables constant. This effect is not statistically significant.
+
+**Nulliparaous (no children):**
+The odds of having a preterm birth for a nulliparaous woman is `r table_1$Odds[3]` (`r table_1$CI_low[3]`; `r table_1$CI_high[3]`, p`r table_1$p[3]`) compared to a primiparous woman,   holding all other variables constant. This is statistically significant. 
+
+**Interpretation of the rest of the variables:**
+Same as above... 
+
+
+#### 2.1.1. Categorized maternal age 
+
+As seen above, the maternal age, centeret or not, was found to be non-significant as a continues variable in the association. Therefore, it makes sense to check how the effect of the maternal age changes when included as a categorized variable instead of the continues one. 
+A histogram is constructed to evalute the distribution of the variable and thereby determined the right categotization of it: 
+
+```{r histogram, echo=FALSE, message=FALSE}
+library(patchwork)
+
+preterm |>
+  drop_na(age) |>             
+  ggplot(aes(x = age)) +       
+  geom_histogram(aes(y = after_stat(density)), binwidth = 2, alpha = 0.65, 
+                 fill = "#3a86d4", color = "white") + 
+  geom_density(color = "#1d538f", linewidth = 0.8) + 
+  scale_x_continuous(breaks = seq(15, 45, by = 5)) +
+  labs(x = NULL,                                        
+       y = "Density",
+       title = "Figure 1: Histogram of maternal age (year)") +
+  plot_annotation(caption = "Dataset: preterm.csv")
+```
+
+```{r categorization, echo=FALSE, message=FALSE, warning=FALSE}
+library(knitr)
+library(kableExtra) 
+
+preterm <- preterm |> 
+  mutate(age_cat = cut(age, c(0, 25, 30, 35, 40, Inf),
+                       labels = c("<25", "25-30", "30-35", "35-40", ">40")),
+         age_cat = fct_relevel(age_cat, "<25"),
+         age_cat = factor(age_cat)
+         )
+
+# Control if every parameter have 10 events 
+xtabs(~age_cat, data = preterm) |> 
+  as_tibble() |> 
+  rename("Parameter" = age_cat,
+         "count (n)" = n) |> 
+  kable(format = "html", align = "lr", 
+        caption = "Table 2: Distribution of maternal age categories") |> 
+  kable_classic(full_width = FALSE, html_font = "Cambria") |> 
+    column_spec(1, width = "150px") |> 
+  column_spec(2, width = "150px")
+```
+```{r change_cate, message=FALSE, warning=FALSE, include=FALSE}
+preterm <- preterm |> 
+  mutate(age_cat = fct_relevel(age_cat, "<25-30")
+         )
+```
+
+**INTERPRETATION**
+
+The histogram shows two things: 
+
+1. The distribution of the maternal age (year) is normal distributed
+
+2. A categorization of the intervals `<25; 25-30; 30-35; 35-40; >40` do so that all parameters contain more than 10 events. 
+
+Now, a new regression analysis can be made to see, if the categorization changes the significans: 
+
+```{r regression_2.1.1, message=FALSE, warning=FALSE, include=FALSE}
+table_2 <- list(
+  "Model" = glm(preterm ~ age_cat + paritygrp + smoker + sex, 
+                data = preterm, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 2: Multiple logistic regression (categorization of maternal age)") |> 
+  select("Table 2: Multiple logistic regression (categorization of maternal age)" = Parameter, 
+         Estimate = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+```
+```{r table_2.1.1, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(stargazer)
+
+## Models
+model_cat  <- glm(preterm ~ age_cat + paritygrp + smoker + sex, 
+                data = preterm, family = binomial)
+
+## Transforming from log-odds to odds
+OR_cat <- exp(coef(model_cat))
+CI_cat <- exp(confint(model_cat))
+p_cat  <- summary(model_cat)$coefficients[, 4]
+
+## Table
+stargazer(model, model_cat,
+          type = "html",                  
+          coef = list(OR_vector, OR_cat), 
+          title = "Table 3: Comparing two models to examin how maternal age affects the association (continuert vs. categorized)",
+          ci = TRUE,                      
+          ci.custom = list(CI_vector, CI_cat),    
+          p = list(p_values, p_cat),             
+          covariate.labels = c("Maternal age (year)",
+                               "Maternal age (<25)", "Maternal age (30-35)", 
+                               "Maternal age (35-40)", "Maternal age (>40)",   
+                               "Nulliparaous (no children)", "Multiparaous (>=2)",  
+                               "Smoker (ref. = No)", "Gender (ref. = Boy)", 
+                               "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          keep.stat = c("n"),
+          notes = c("Preterm birth (ref. = no); Maternal age (ref. = 25-30); Parity (ref. = Primiparous); Smoker status (ref. = No); Gender (ref. = Boy)"),
+          notes.append = TRUE,
+          notes.align = "l"
+)
+```
+```{r check_result, message=FALSE, warning=FALSE, include=FALSE}
+stargazer(model, model_cat,
+          type = "text",                  
+          coef = list(OR_vector, OR_cat), 
+          title = "Table 2: Comparing the multiple model with maternal age as a continuert variable with one where the variable is categorized",
+          ci = TRUE,                      
+          ci.custom = list(CI_vector, CI_cat),    
+          p = list(p_values, p_cat),             
+          covariate.labels = c("Maternal age (year)",
+                               "Maternal age (<25)", "Maternal age (30-35)", 
+                               "Maternal age (35-40)", "Maternal age (>40)",   
+                               "Nulliparaous (no children)", "Multiparaous (>=2)",  
+                               "Smoker (ref. = No)", "Gender (ref. = Boy)", 
+                               "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          keep.stat = c("n")
+)
+```
+
+**INTERPRETATION**
+
+When comparing the two models it's clear that the significance changes for only one parameter; maternal age (35-40). Here the odds for preterm births is significantly higher when compared to mothers with a maternal age at 25-30 years (`r table_2$Odds[4]` (`r table_2$CI_low[4]`; `r table_2$CI_high[4]`, p`r table_2$p[4]`)). 
+
+When comparing all other variables adjusted for in the association non-significant change is to be noted.
+
+
+
+
+
+
+
+
