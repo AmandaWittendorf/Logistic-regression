@@ -1,0 +1,451 @@
+---
+title: "TASK (dataset: chd)"
+author: "Amanda Wittendorf"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+## 1. DESKRIPTION ON THE DATASET
+
+The dataset contains measurements a large American study named *The Framingham Heart Study*, whose purpose was to identify factors that could contribute to cardiovascular diseases
+
+from 636 Peruvian children. More specifically: 
+
+- $\text{id}$:     individuals ID-number 
+
+- $\text{chd}$:    cardiovascular disease after 18 years of follow-up (1 = yes, 0 = no)
+
+- $\text{sbp160}$: systolic blood pressure (1 = sbp > 160, 0 = sbp < 160)
+
+- $\text{age}$:    individuals age (year) 
+
+- $\text{sex}$:    gender (1 = male, 2 = female)
+
+
+```{r dataset, message=FALSE, include=FALSE}
+library(statistik)
+
+chd <- read.csv("chd.csv") |> 
+  mutate(sex = factor(sex,
+                      levels = c(1, 2), 
+                      labels = c("Male", "Female")),
+         sex = fct_relevel(sex, "Male"),
+         sbp = factor(sbp160,
+                         levels = c(1, 0),
+                         labels = c(">160", "<160")),
+         sbp = fct_relevel(sbp, "<160")
+         )
+```
+
+
+## 1. SIMPLE LOGISTIC REGRESSION MODEL
+
+### 1.1 ASSOCIATION BETWEEN SYSTOLIC BLOOD PRESSURE ($\text{sbp160}$) & THE RISK OF GETTING CARDIOVASCULAR DISEASE AFTER 18 YEARS OF FOLLOW-UP ($\text{chd}$)
+
+**The model**
+$$chd = \beta_\text{0} + \beta_\text{1} \cdot sbp160 $$
+```{r regression_resp_sex, message=FALSE, warning=FALSE, include=FALSE}
+table_1 <- list(
+  "Model" = glm(chd ~ sbp, data = chd, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 1: Simple logistic regression") |> 
+  select("Table 1: Simple logistic regression" = Parameter, 
+         Estimate = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+```
+```{r table_resp_sex, echo=FALSE, message=FALSE, warning=FALSE}
+library(stargazer)
+
+## Models
+model   <- glm(chd ~ sbp, data = chd, family = binomial)
+
+## Transforming from log-odds to odds
+OR_vector <- exp(coef(model))
+CI_vector <- exp(confint(model))
+p_values  <- summary(model)$coefficients[, 4]
+
+## Table
+stargazer(model, 
+          type = "text",                  
+          coef = list(OR_vector), 
+          title = "Table 1: Association between cardiovascular disease and SBP (ref. = <160 mmHg)",
+          ci = TRUE,                      
+          ci.custom = list(CI_vector),    
+          p = list(p_values),             
+          covariate.labels = c("SBP (>160)", "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          keep.stat = c("n")
+)
+```
+**INTREPETATION**
+
+**Intercept:** 
+The statistically significant odds of developing cardiovascular disease ($\text{chd}$) for individuals with normal systolic blood pressure $\text{sbp}_{<160}$ (reference group) is `r table_1$Odds[1]` (`r table_1$CI_low[1]`; `r table_1$CI_high[1]`, p `r table_1$p[1]`). This Oddss that for every 1 individual with normal systolic blood pressure who does not develop cardiovascular disease, `r table_1$Odds[1]` individual(s) will develop the disease.
+
+**SBP (>160):**
+The statistically significant odds for a a person with a elevated systolic blood pressure ($\text{sbp}_{>160}$) has `r table_1$Odds[2]` times higher odds to get cardiovascular disease compared to those with normal blood pressure ($\text{sbp}_{<160}$).
+
+
+##### 1.1.1 The corresponding odds ratio for men and women separately
+
+To calculate the OR for the genders separately the function `filter` is included in separate regression model; one for the female, and one for the males. 
+
+```{r regression_gender_sep, message=FALSE, warning=FALSE, include=FALSE}
+table_2 <- list(
+  "Model (female)" = glm(chd ~ sbp, 
+                         data = filter(chd, sex == "Female"), family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame(),
+  "Model (male)" = glm(chd ~ sbp, 
+                 data = filter(chd, sex == "Male"), family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 2: Separate regression model (genders)") |> 
+  select("Table 2: Separate regression model (genders)" = Parameter, 
+         Estimate = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+```
+```{r comp_table2, echo=FALSE, message=FALSE, warning=FALSE}
+library(stargazer)
+
+## Models
+model_female <- glm(chd ~ sbp, 
+                     data = filter(chd, sex == "Female"), family = binomial)
+
+model_male   <- glm(chd ~ sbp, 
+                     data = filter(chd, sex == "Male"), family = binomial)
+
+## ## Transforming from log-odds to odds (Både for kvinder og mænd)
+OR_female <- exp(coef(model_female))
+CI_female <- exp(confint(model_female))
+p_female  <- summary(model_female)$coefficients[, 4]
+
+OR_male   <- exp(coef(model_male))
+CI_male   <- exp(confint(model_male))
+p_male    <- summary(model_male)$coefficients[, 4]
+
+## Table
+stargazer(model_female, model_male,
+          type = "text",
+          title = "Table 2: Separate regression model (genders)",
+          column.labels = c("Model (female)", "Model (male)"),
+          coef = list(OR_female, OR_male),   
+          ci = TRUE,
+          ci.custom = list(CI_female, CI_male),  
+          p = list(p_female, p_male),         
+          covariate.labels = c("SBP (<160)", "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          keep.stat = c("n")
+)
+```
+**INTERPRETATION**
+
+**Intercept:** 
+The same as before but separately for males and females... 
+
+However, the odds of developing cardiovascular disease for $\text{gender}_{males}$ are not statistically significant $\text{sbp}_{<160}$ (reference group) is `r table_2$Odds[3]` (`r table_2$CI_low[3]`; `r table_2$CI_high[3]`, p `r table_2$p[3]`). 
+
+**SBP (<160):**
+The same as before but separately for males and females... 
+
+**Effect modification:**
+When looking at the estimates and comparing it to the crude estimate ($\text{gender}_{crude}$) it appears that elevated systolic blood pressure ($\text{sbp}_{>160}$) has a universal, strong and statistically significant effect on the cardiovascular disease; no matter the gender. However, this is not telling if there is effect modification or not... 
+
+
+## 2. MULTIPLE LOGISTISK REGRESSION MODEL
+
+### 2.1 ASSOCIATION BETWEEN SYSTOLIC BLOOD PRESSURE ($\text{sbp}$), THE RISK OF GETTING CARDIOVASCULAR DISEASE ($\text{chd}$) ADJUSTING FOR GENDERS ($\text{sex}$)
+
+To evaluate how the two genders ($\text{sex}$) effect the association a multiple logistic regression model, in which $\text{sex}$ is included, is made:
+$$\text{chd} = \beta_\text{0} + \beta_\text{1} \cdot \text{sbp} + \beta_\text{2} \cdot \text{sex}$$
+This model is compared to *the simple logistic model* in which $\text{sex}$ isn't included
+
+```{r regression_mult, message=FALSE, warning=FALSE, include=FALSE}
+table_3 <- list(
+  "Model" = glm(chd ~ sbp + sex, data = chd, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 3: Multiple logistic regression") |> 
+  select("Table 3: Multiple logistic regression" = Parameter, 
+         Estimate = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+```
+```{r table_mult, echo=FALSE, message=FALSE, warning=FALSE}
+library(stargazer)
+
+## Models
+model_mult   <- glm(chd ~ sbp + sex, data = chd, family = binomial)
+
+## Transforming from log-odds to odds
+OR_mult <- exp(coef(model_mult))
+CI_mult <- exp(confint(model_mult))
+p_mult  <- summary(model_mult)$coefficients[, 4]
+
+## Table
+stargazer(model, model_mult,
+          type = "text",                  
+          title = "Table 3: Association between cardiovascular disease, SBP (ref. = >160 mmHg) & gender (ref. = male)",
+          column.labels = c("Simple model", "Multiple model"),
+          coef = list(OR_vector, OR_mult),   
+          ci = TRUE,
+          ci.custom = list(CI_vector, CI_mult),  
+          p = list(p_values, p_mult),         
+          covariate.labels = c("SBP (<160)", "Gender (female)", "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          keep.stat = c("n")
+)
+```
+**INTERPRETATION**
+
+When looking at the results the risk when having elevated systolic blood pressure ($\text{sbp}_{>160}$), the gender-specific OR (`r table_2$Estimate[1]` & `r table_2$Estimate[3]`) is higher than the crude model (`r table_1$Estimate[1]`)
+
+This phenomenon is called confounding, more specific Simpson's Paradox, and is characterized by;
+
+1. $\text{sex}$ is strongly associated to developing cardiovascular disease $\text{chd}$ e.g. $\text{sex}_{female}$ has significantly lower odds than $\text{sex}_{male}$ independently to $\text{sbp}$.  
+
+2. $\text{sex}$ is associated to the SBP-distribution; the genders has different distribution of high SBP $\text{sbp}_{>160}$ and normal SBP $\text{sbp}_{<160}$. 
+*In conclusion* when not adjusting for genders ($\text{sex}$), the effect of high SBP ($\text{sbp}_{>160}$) is underestimated because $\text{sex}_{male}$, with a higher overall risk, and $\text{sex}_{female}$, with a lower overall risk, are mixed together.
+
+
+##### 2.1.1. CONFOUNDING
+
+To better evaluated if gender ($\text{sex}$) is a confounder to the association, a plot is constructed:
+
+```{r confounding_plot, echo=FALSE, message=FALSE, warning=FALSE}
+library(patchwork)
+
+## Collecting the prediction values
+plot_data <- plot_predictions(model_mult,
+                              condition = list("sbp", "sex"),
+                              type = "response", 
+                              df = model_mult$df.residual,
+                              draw = FALSE)
+
+## Constructing the plot
+ggplot(plot_data, 
+       aes(x = sbp, y = estimate, 
+           color = sex, group = sex)) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
+                width = 0.1, linewidth = 0.8, position = position_dodge(0.3)) +
+  geom_point(size = 4, position = position_dodge(0.3)) +
+  scale_color_manual(values = c("Female" = "##E6A15C", "Male" = "##1F3A52")) +
+  labs(title = "Figure 1: Predicted Probability of Cardiovascular Disease (chd)",
+       subtitle = "Based on Systolic Blood Pressure and Gender",
+       x = "Systolic Blood Pressure (mmHg)",
+       y = "Predicted Probability of chd",
+       color = "Gender") +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(face = "italic", size = 12)
+  ) +
+  plot_annotation(caption = "Dataset: Framingham (chd)")
+```
+
+*Figure 1 illustrates that males ($\text{sex}_{male}$) have a significantly higher predicted probability of developing cardiovascular disease $\text{chd}$ compared to females ($\text{sex}_{female}$) across both SBP-strata*, as indicated by the non-overlapping 95% CIs between genders within each group.
+
+However, the relative increase in risk from normal to elevated SBP develops in a similar parallel fashion for both men and women. This parallel trend visually confirms that sex ($\text{sex}$) acts as a confounder because it shifts the baseline risk rather than modifying the effect of SBP itself.
+
+
+### 2.2 ASSOCIATION BETWEEN SBP ($\text{sbp}$) & THE RISK OF GETTING CARDIOVASCULAR DISEASE ($\text{chd}$) ADJUSTING FOR GENDERS ($\text{sex}$) & AGE ($\text{age}$)
+
+**Model**
+$$\text{chd} = \beta_\text{0} + \beta_\text{1} \cdot \text{sbp} + \beta_\text{2} \cdot \text{sex} + \beta_\text{3} \cdot \text{age}$$
+```{r regression_resp_sex_age, message=FALSE, warning=FALSE, include=FALSE}
+table_4 <- list(
+  "Model" = glm(chd ~ sbp + sex + age, data = chd, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 4: Multiple logistic regression") |> 
+  select("Table 4: Multiple logistic regression" = Parameter, 
+         Estimate = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+```
+```{r table_resp_sex_age, echo=FALSE, message=FALSE, warning=FALSE}
+library(stargazer)
+
+## Models
+model_mult1   <- glm(chd ~ sbp + sex + age, data = chd, family = binomial)
+
+## Transforming from log-odds to odds
+OR_mult1 <- exp(coef(model_mult1))
+CI_mult1 <- exp(confint(model_mult1))
+p_mult1  <- summary(model_mult1)$coefficients[, 4]
+
+## Table
+stargazer(model_mult1, 
+          type = "text",
+          title = "Table 3: Association between cardiovascular disease & SBP (ref. = >160 mmHg) adjusting for gender (ref. = male) & age",
+          coef = list(OR_mult1),
+          ci = TRUE,
+          ci.custom = list(CI_mult1),
+          p = list(p_mult1),
+          covariate.labels = c("SBP (>160)", "Gender (female)", "Age (year)", "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          keep.stat = c("n")
+)
+```
+**INTERPRETATION**
+
+**Reference group:**
+A male ($\text{sex}_{male}$) with normal blood pressure ($\text{sbp}_{<160}$) with an age ($\text{age}$) of 0 years old. 
+
+**Intercept:**
+The odds for getting cardiovascular disease ($\text{chd}$) for the reference group..
+
+**SBP (>160):**
+When adjusting for gender ($\text{sex}$) and age ($\text{age}$), individuals with high SBP ($\text{sbp}_{>160}$) is `r table_4$Odds[2]` (`r table_4$CI_low[2]`; `r table_4$CI_high[2]`, p `r table_4$p[2]`) times higher odds of getting cardiovascular disease ($\text{chd}$) than individuals with normal SBP ($\text{sbp}_{<160}$). 
+
+**Gender (female):**
+When adjusting for SBP ($\text{sbp}$) and age ($\text{age}$), $\text{sex}_{female}$ has `r table_4$Odds[3]` (`r table_4$CI_low[3]`; `r table_4$CI_high[3]`, p `r table_4$p[3]`) times higher odds of getting cardiovascular disease ($\text{chd}$) than $\text{sex}_{male}$.
+
+**Age (year):**
+For each year one individual gets older, the odds for evolving cardiovascular diseases ($\text{chp}$) with `r table_4$Odds[4]` (`r table_4$CI_low[4]`; `r table_4$CI_high[4]`, p `r table_4$p[4]`) when adjusting for gender ($\text{sex}$) and SBP ($\text{sbp}$) . 
+
+
+##### 2.2.3 THE SPECIFIC EFFECT FOR TWO INDIVIDUALS & THE OR BETWEEN THE TWO 
+
+a. 60-year-old men with a systolic blood pressure < 160 mmHg.
+
+b. 50-year-old women with a systolic blood pressure > 160 mmHg.
+
+To calculate the specific effect for the two individuals the function `hypothesis (0 = reference)`
+
+```{r names_coefficients, message=FALSE, warning=FALSE, include=FALSE}
+coefficients(model_mult1)
+```
+```{r hypothesis_test, echo=FALSE, message=FALSE, warning=FALSE}
+## ## Hypothesis
+hypotheses <- c(
+  "Person A" = "`(Intercept)` + 0*`sbp>160` + 0*`sexFemale` + 60*`age` = 0",
+  "Person B" = "`(Intercept)` + 1*`sbp>160` + 1*`sexFemale` + 50*`age` = 0",
+  "Diff."    = "`(Intercept)` + 0*`sbp>160` + 0*`sexFemale` + 60*`age` =
+                `(Intercept)` + 1*`sbp>160` + 1*`sexFemale` + 50*`age`"
+)
+
+## ## Tabel
+table_hyp <- hypotheses(model_mult1,
+                        hypothesis = hypotheses,
+                        df = model_mult1$df.residual) |> 
+  parameters(exponentiate = TRUE, digits = 1) |> 
+  as.data.frame() |> 
+  select("Hypothesis test" = Parameter, Odds = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Odds, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(p < 0.001 ~ "< 0.001",
+                  p < 0.05  ~ "< 0.05",
+                  TRUE      ~ as.character(round(p, 3)))
+  )
+
+## ## Print
+table_hyp
+```
+**INTERPRETATION**
+
+It's evident, that *Person A* has significant higher odds of getting cardiovascular diseases than *Person B* - however the difference  between these two individuals are NOT significant (`r table_hyp$Odds[3]` (`r table_hyp$CI_low[3]`; `r table_hyp$CI_high[3]`, p `r table_hyp$p[3]`) )
+
+
+---------------
+An alternative approach to generating individual-level predictions involves the `predictions`-function; this routine facilitates the estimation of both predicted odds, log-odds, and risk. 
+
+```{r predictions_function, echo=FALSE, warning=FALSE}
+table_5 <- list(
+  "Person A (log-odds)" = predictions(model_mult1,
+                                      newdata = datagrid(sex = c("Male"),
+                                                         age = c(60), 
+                                                         sbp = c("<160")), 
+                                      type = "link") |> 
+    parameters() |> as.data.frame(),
+  "Person A (odds)" = predictions(model_mult1, 
+                                  newdata = datagrid(sex = c("Male"),
+                                                     age = c(60), 
+                                                     sbp = c("<160")), 
+                                  type = "link", transform = exp) |> 
+    parameters() |> as.data.frame(),
+  "Person A (risk)" = predictions(model_mult1, 
+                                  newdata = datagrid(sex = c("Male"),
+                                                     age = c(60), 
+                                                     sbp = c("<160"))) |> 
+    parameters() |> as.data.frame(),
+  "Person B (log-odds)" = predictions(model_mult1,
+                                      newdata = datagrid(sex = c("Female"),
+                                                         age = c(50), 
+                                                         sbp = c(">160")),
+                                      type = "link") |>
+    parameters() |> as.data.frame(),
+  "Person B (odds)" = predictions(model_mult1,
+                                  newdata = datagrid(sex = c("Female"),
+                                                     age = c(50), 
+                                                     sbp = c(">160")),
+                                  type = "link", transform = exp)|>
+    parameters() |> as.data.frame(),
+  "Person B (risk)" = predictions(model_mult1,
+                                  newdata = datagrid(sex = c("Female"),
+                                                     age = c(50), 
+                                                     sbp = c(">160")))|>
+    parameters() |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 5: Odds, log(odds) & risk") |> 
+  select("Table 5: Odds, log(odds) & risk", Estimate = Predicted, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+table_5
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

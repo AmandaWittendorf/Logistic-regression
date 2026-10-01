@@ -1,0 +1,151 @@
+---
+title: "TASK (dataset: perulung)"
+author: "Amanda Wittendorf"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 1. DESKRIPTION ON THE DATASET
+
+The dataset contains measurements from 636 Peruvian children. More specifically: 
+
+- $\text{FEV1}$: Forceret Ekspiratorisk Volumen in the 1. secound 
+
+- $\text{height}$: childrens height (cm) 
+
+- $\text{age}$: childrens age (year) 
+
+- $\text{sex}$: gender (0 = girls / 1 = boys)
+
+- $\text{respsymptoms}$: measured respiratory symptoms within the past year (0 = no / 1 = yes)
+
+```{r dataset, message=FALSE, include=FALSE}
+library(statistik)
+
+perulung <- read.csv("perulung.csv") |> 
+  mutate(sex = factor(sex,
+                      levels = c(0, 1), 
+                      labels = c("Girls", "Boys")),
+         sex = fct_relevel(sex, "Boys"),
+         respsymptoms = factor(respsymptoms,
+                               levels = c(0, 1),
+                               labels = c("No", "Yes")),
+         respsymptoms = fct_relevel(respsymptoms, "Yes"))
+```
+
+
+# 2. SIMPLE LOGISTIC REGRESSION MODEL
+
+## 2.1. ASSOCIATION BETWEEN RESPIRATORY SYMPTOMS ($\text{respsymptoms}$) & GENDERS ($\text{sex}$)
+
+```{r regression_resp_sex, message=FALSE, warning=FALSE, include=FALSE}
+table_1 <- list(
+  "Model" = glm(respsymptoms ~ sex, data = perulung, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 1: Simple logistic regression") |> 
+  select("Table 1: Simple logistic regression" = Parameter, 
+         Estimate = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+```
+```{r table_resp_sex, echo=FALSE, message=FALSE, warning=FALSE}
+library(stargazer)
+
+# Models
+model   <- glm(respsymptoms ~ sex, data = perulung, family = binomial)
+
+# Transforming from log-odds to odds
+OR_vector <- exp(coef(model))
+CI_vector <- exp(confint(model))
+p_values  <- summary(model)$coefficients[, 4]
+
+# Table
+stargazer(model, 
+          type = "text",                  
+          coef = list(OR_vector), 
+          title = "Table 1: Association between respiratory symptoms (ref. = no) and sex (ref. = boys)",
+          ci = TRUE,                      
+          ci.custom = list(CI_vector),    
+          p = list(p_values),             
+          d$ep.var.labels = "Respiratory symptoms",
+          covariate.labels = c("Gender (Female)", "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          keep.stat = c("n")
+)
+```
+**INTREPETATION**
+
+The estimates is interpreted as odds/odds ratio (OR). 
+
+**Intercept:** 
+The statistically significant odds for $\text{gender}_{boys}$ (reference group) with respiratory symptoms is `r table_1$Mean[1]` (`r table_1$CI_low[1]`; `r table_1$CI_high[1]`, p `r table_1$p[1]`) which means, that every time one boy appear without symptoms, `r table_1$Mean[1]` boys will appear with symptoms.  
+
+**Gender (female):**
+The odds ratio (OR) for $\text{gender}_{girls}$ comparing to $\text{gender}_{boys}$ with both having respiratory symptoms is `r table_1$Mean[2]` (`r table_1$CI_low[2]`; `r table_1$CI_high[2]`, p `r table_1$p[2]`). However, this is not significant. 
+
+--------------
+To calculate the specific effect for $\text{gender}_{girls}$ the function `hypothesis` is used: 
+
+```{r names_coefficients, echo=FALSE}
+coefficients(model)
+```
+```{r hypothesis_test, echo=FALSE, message=FALSE, warning=FALSE}
+# Hypothesis
+hypotesis <- c(
+  "Odds for girls" = "`(Intercept)` + sexGirls = 0",
+  "Odds for boys" = "`(Intercept)` = 0",
+  "OR (girls vs. boys)"  = "sexGirls = 0" 
+)
+
+# Tabel
+table_hyp <- hypotheses(model, 
+                      hypothesis = hypotesis, 
+                      df = model$df.residual) |>
+  parameters(exponentiate = TRUE, digits = 1) |> as.data.frame() |>
+  
+  select("The effect of respiratory symptoms " = Parameter, Mean = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Mean, CI_low, CI_high), ~ round(.x, 2)),
+         p = case_when(p < 0.001 ~ "< 0.001",
+                       p < 0.05  ~ "< 0.05",
+                       TRUE      ~ as.character(round(p, 3)))
+         )
+
+# Print
+table_hyp
+```
+
+**INTERPRETATION**
+
+The last effect, the effect of respiratory symptoms for $\text{gender}_{girls}$, is now calculated to be statistically significant `r table_hyp$Mean[1]` (`r table_hyp$CI_low[1]`; `r table_hyp$CI_high[1]`, p `r table_hyp$p[1]`). 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

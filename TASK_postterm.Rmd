@@ -1,0 +1,399 @@
+---
+title: "TASK (dataset: postterm)"
+author: "Amanda Wittendorf"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+## 1. DESKRIPTION ON THE DATASET
+
+The dataset contains information on post-term birth for 12311 parturient women. More specifically: 
+
+- $\text{ptd}$:     Status for post-term birth; if the child was after week 42 is defined as post-term while a child born before or after week 42 is defined as not born post-term (Yes / No)
+
+- $\text{parity}$:  The number of which a mother has given birth; primiparous is defined as a first time mother while multiparous is defined as women who have given birth before (primipara / multipara)
+
+- $\text{age}$:     Maternal age (year)
+
+
+```{r dataset, message=FALSE, warning=FALSE, include=FALSE}
+library(statistik)
+
+post <- read.csv("postterm.csv") |> 
+  mutate(ptd = factor(ptd),
+         ptd = fct_relevel(ptd, "No"),
+         ptd_num = as.numeric(ptd),
+         parity = factor(parity),
+         parity = fct_relevel(parity, "primiparous")
+         )
+```
+
+
+## 2. SIMPLE LOGISTIC REGRESSION MODEL
+
+### 2.1 ASSOCIATION BETWEEN STATUS FOR POST-TERM BIRTH ($\text{ptd}$) & MATERNAL AGE $\text{age}$.
+
+**The model**
+$$\text{ptd} = \beta_\text{0} + \beta_\text{1} \cdot \text{age}$$
+```{r regression_ptd_age, message=FALSE, warning=FALSE, include=FALSE}
+table_1 <- list(
+  "Model" = glm(ptd ~ age, data = post, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 1: Simple logistic regression") |> 
+  select("Table 1: Simple logistic regression" = Parameter, 
+         Odds = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Odds, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+```
+```{r table_ptd_age, echo=FALSE, message=FALSE, warning=FALSE}
+library(stargazer)
+
+## Models
+model   <- glm(ptd ~ age, data = post, family = binomial)
+
+## Transforming from log-odds to odds
+OR_vector <- exp(coef(model))
+CI_vector <- exp(confint(model))
+p_values  <- summary(model)$coefficients[, 4]
+
+## Table
+stargazer(model, 
+          type = "text",                  
+          coef = list(OR_vector), 
+          title = "Table 1: Association between post-term birth (ref. = No) & maternal age",
+          ci = TRUE,                      
+          ci.custom = list(CI_vector),    
+          p = list(p_values),           
+          dep.var.labels = "Post-term birth (ptd)",
+          covariate.labels = c("Maternal age (year)", "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          keep.stat = c("n")
+)
+```
+**INTREPETATION**
+
+**Intercept:** 
+The statistically significant odds for having post-term birth ($\text{ptd}$) for mothers who has a maternal age at 0 years ($\text{age}=0$) - this is not of biological meaning because of the maternal age. 
+
+**Maternal age (years)**
+For each year the maternal age increases, the odds for having a post-term birth will increases significant with `r table_1$Odds[2]` (`r table_1$CI_low[2]`; `r table_1$CI_high[2]`, p`r table_1$p[2]`). 
+
+
+#### 2.1.1 Calculate OR for a specific age difference of 10 years. 
+
+To calculate this, the `hypotheses()`-function is used without including the intercept. This is because we are evaluating the relative effect of a 10-year age difference rather than an absolute value. Conversely, if we were to predict the specific odds or probability for an individual case, the intercept would be required.
+
+```{r names_coefficients, message=FALSE, warning=FALSE, include=FALSE}
+coefficients(model)
+```
+```{r hypothesis_test, echo=FALSE, message=FALSE, warning=FALSE}
+## ## Hypothesis
+hypotheses <- c(
+  "Age difference, 10 years" = "10*age = 0"
+)
+
+## ## Tabel
+table_hyp <- hypotheses(model,
+                        hypothesis = hypotheses,
+                        df = model$df.residual) |> 
+  parameters(exponentiate = TRUE, digits = 1) |> 
+  as.data.frame() |> 
+  select("Hypothesis test" = Parameter, OR = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(OR, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(p < 0.001 ~ "< 0.001",
+                  p < 0.05  ~ "< 0.05",
+                  TRUE      ~ as.character(round(p, 3)))
+  )
+
+## ## Print
+table_hyp
+```
+**INTERPRETATION**
+
+The odds of having a post-term birth is significantly higher when comparing mothers with an age difference of 10 years; `r table_hyp$OR[2]` (`r table_hyp$CI_low[2]`; `r table_hyp$CI_high[2]`, p`r table_hyp$p[2]`). 
+
+The p-value remains the same when comparing the exposure ($\text{age}$) and the predicted value ($\text{age}_{diff(10)}$) because both tests evaluate the same underlying hypothesis: *whether maternal age is associated with post-term birth* 
+
+
+## 3. MULTIPLE LOGISTIC REGRESSION MODEL
+
+### 3.1. ASSOCIATION BETWEEN STATUS FOR POST-TERM BIRTH ($\text{ptd}$) & MATERNAL AGE $\text{age}$ ADJUSTED FOR PARITY ($\text{parity}$)
+
+**The model**
+$$\text{ptd} = \beta_\text{0} + \beta_\text{1} \cdot \text{age} + \beta_\text{2} \cdot \text{parity}$$
+```{r regression_multi, message=FALSE, warning=FALSE, include=FALSE}
+table_2 <- list(
+  "Model" = glm(ptd ~ age + parity, data = post, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 2: Multiple logistic regression") |> 
+  select("Table 2: Multiple logistic regression" = Parameter, 
+         Odds = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Odds, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+```
+```{r table_multi, echo=FALSE, message=FALSE, warning=FALSE}
+library(stargazer)
+
+## Models
+model_mult   <- glm(ptd ~ age + parity, data = post, family = binomial)
+
+## Transforming from log-odds to odds
+OR_mult <- exp(coef(model_mult))
+CI_mult <- exp(confint(model_mult))
+p_mult  <- summary(model_mult)$coefficients[, 4]
+
+## Table
+stargazer(model, model_mult, 
+          type = "text",                  
+          coef = list(OR_vector, OR_mult), 
+          title = "Table 2: Comparing the simple & multiple model for the association between post-term birth (ref. = No) & maternal age, adjusted for parity",
+          column.labels = c("Simple model", "Multiple model"),
+          ci = TRUE,                      
+          ci.custom = list(CI_vector, CI_mult),    
+          p = list(p_values, p_mult),           
+          dep.var.labels = "Post-term birth (ptd)",
+          covariate.labels = c("Maternal age (year)", "Parity status (ref. = primiparous)", "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          keep.stat = c("n")
+)
+```
+
+#### 3.1.1. CONFOUNDING 
+
+The purpose of this section is to evaluate if *($\text{parity}$) is a confounder for the association*. 
+
+```{r confounding_plot, echo=FALSE, message=FALSE, warning=FALSE}
+## Collecting the prediction values (Husk at bruge din opdaterede model her)
+plot_data <- plot_predictions(model_mult,
+                              condition = list("age", "parity"),
+                              type = "response",
+                              df = model_mult$df.residual,
+                              draw = FALSE)
+
+## Constructing the plot
+ggplot(plot_data, 
+       aes(x = age, y = estimate, 
+           color = parity, fill = parity, group = parity)) + 
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15, color = NA) + 
+  geom_line(linewidth = 1) + 
+  
+  scale_color_manual(
+    values = c("primipara" = "#E6A15C", "multipara" = "#1F3A52"),
+    labels = c("primipara" = "Primiparous (=1)", "multipara" = "Multiparous (>1)")) + 
+  
+  scale_fill_manual(
+    values = c("primipara" = "#E6A15C", "multipara" = "#1F3A52"),
+    labels = c("primipara" = "Primiparous (=1)", "multipara" = "Multiparous (>1)")) + 
+  
+  labs(title = "Figure 1: Predicted Probability of post-term birth (prd)",
+       subtitle = "Based on Maternal Age & Parity",
+       x = "Maternal age (year)",
+       y = "Predicted Probability of prd",
+       color = "Parity", fill = "Parity", 
+       caption = "Dataset: postterm.csv") + 
+  
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(face = "italic", size = 12)
+  )
+
+```
+
+**INTERPRETATION**
+
+The slope estimate doesn't changed when comparing the crude model with the adjusted one; see $\text{Table 2,}$ $\text{OR}_{age}$. This indicates that $\text{parity}$ isn't a confounder for the association between post-term birth ($\text{pdr}$) and maternal age ($\text{age}$). This effect is called *independent main effects; the parity groups and the maternal age have their own independent and statistically significant risk factors for the association to post-term births*.
+
+
+#### 3.1.2. EFFECT MODIFICATION
+
+To evaluate if parity status have an effect modification on the association, an interactive term is included in the model:
+
+**The model**
+$$\text{ptd} = \beta_\text{0} + \beta_\text{1} \cdot \text{age} + \beta_\text{2} \cdot \text{parity} + \beta_\text{3} \cdot \text{parity} \cdot \text{age}$$
+
+```{r regression_multi1, message=FALSE, warning=FALSE, include=FALSE}
+table_3 <- list(
+  "Model" = glm(ptd ~ age * parity, data = post, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 3: Multiple logistic regression with interaction") |> 
+  select("Table 3: Multiple logistic regression with interaction" = Parameter, 
+         Odds = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Odds, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+table_3
+```
+```{r table_multi1, echo=FALSE, message=FALSE, warning=FALSE}
+library(stargazer)
+
+## Models
+model_mult1   <- glm(ptd ~ age * parity, data = post, family = binomial)
+
+## Transforming from log-odds to odds
+OR_mult1 <- exp(coef(model_mult1))
+CI_mult1 <- exp(confint(model_mult1))
+p_mult1  <- summary(model_mult1)$coefficients[, 4]
+
+## Table
+stargazer(model, model_mult1, 
+          type = "text",                  
+          coef = list(OR_vector, OR_mult1), 
+          title = "Table 3: Comparing the simple & mult1iple model for the association between post-term birth (ref. = No) & maternal age, with a interactive term between age and parity",
+          column.labels = c("Simple model", "Mult1iple model"),
+          ci = TRUE,                      
+          ci.custom = list(CI_vector, CI_mult1),    
+          p = list(p_values, p_mult1),           
+          dep.var.labels = "Post-term birth (ptd)",
+          covariate.labels = c("Maternal age (year)", "Parity status (ref. = primiparous)", "Interaction (age:parity)", "Intercept"),
+          digits = 2,
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          keep.stat = c("n")
+)
+```
+```{r effect_modification_plot, echo=FALSE, message=FALSE, warning=FALSE}
+## Collecting the prediction values (Husk at bruge din opdaterede model her)
+plot_data <- plot_predictions(model_mult1,
+                              condition = list("age", "parity"),
+                              type = "response",
+                              df = model_mult1$df.residual,
+                              draw = FALSE)
+
+## Constructing the plot
+ggplot(plot_data, 
+       aes(x = age, y = estimate, 
+           color = parity, fill = parity, group = parity)) + 
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15, color = NA) + 
+  geom_line(linewidth = 1) + 
+  
+  scale_color_manual(
+    values = c("primipara" = "#E6A15C", "multipara" = "#1F3A52"),
+    labels = c("primipara" = "Primiparous (=1)", "multipara" = "Multiparous (>1)")) + 
+  
+  scale_fill_manual(
+    values = c("primipara" = "#E6A15C", "multipara" = "#1F3A52"),
+    labels = c("primipara" = "Primiparous (=1)", "multipara" = "Multiparous (>1)")) + 
+  
+  labs(title = "Figure 1: Predicted Probability of post-term birth (prd)",
+       subtitle = "Based on Maternal Age & Parity",
+       x = "Maternal age (year)",
+       y = "Predicted Probability of prd",
+       color = "Parity", fill = "Parity", 
+       caption = "Dataset: postterm.csv") + 
+  
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(face = "italic", size = 12)
+  )
+
+```
+
+**INTERPRETATION**
+
+Table 3 shows that there is no effect modification between parity status and the association between maternal age and post-term birth. The interaction term is not statistically significant, with an $\text{OR}_{interactive}$, `r table_3$Odds[4]` (`r table_3$CI_low[4]`; `r table_3$CI_high[4]`, p `r table_3$p[4]`). 
+
+
+#### 3.1.3. The effect of maternal age ($\text{age}$) for each of the two parity groups ($\text{parity}$).
+
+```{r names_coefficients_mult, message=FALSE, warning=FALSE, include=FALSE}
+coefficients(model_mult1)
+```
+```{r hypothesis_test_mult, echo=FALSE, message=FALSE, warning=FALSE}
+## ## Hypothesis
+hypotheses <- c(
+  "Primiparaous (=1)" = "age = 0",
+  "Multiparaous (>1)" = "age + `age:parityprimipara` = 0" 
+)
+
+## ## Tabel
+table_hyp <- hypotheses(model_mult1,
+                        hypothesis = hypotheses,
+                        df = model_mult1$df.residual) |> 
+  parameters(exponentiate = TRUE, digits = 1) |> 
+  as.data.frame() |> 
+  select("Hypothesis test" = Parameter, OR = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(OR, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(p < 0.001 ~ "< 0.001",
+                  p < 0.05  ~ "< 0.05",
+                  TRUE      ~ as.character(round(p, 3)))
+  )
+
+## ## Print
+table_hyp
+```
+**INTERPRETATION**
+
+**Primiparous (=1):**
+For first time mothers the odds increases significantly for post-term births with `r table_hyp$OR[1]` (`r table_hyp$CI_low[1]`; `r table_hyp$CI_high[1]`, p `r table_hyp$p[1]`) for each year the mother gets older. 
+
+**Multiparous (>1):**
+For multiparous mothers the odds increases significantly for post-term births with  `r table_hyp$OR[2]` (`r table_hyp$CI_low[2]`; `r table_hyp$CI_high[2]`, p `r table_hyp$p[2]`) for each year the mother gets older. 
+
+The small difference between the two parity groups is a reflection of the non-significant effect modification shown in *table 3*. 
+
+
+
+#### 3.1.4. The specific effect for two women
+
+Unlike in *Section 2.1.1*, the intercept is included here because we are calculating the specific odds for two individual profiles.
+
+a. A 35-year-old multiparous woman.
+
+b. A 30-year-old primiparous woman.
+
+```{r hypothesis_test1, echo=FALSE, message=FALSE, warning=FALSE}
+## ## Hypothesis
+hypotheses <- c(
+  "Person A" = "`(Intercept)` + 35*`age` + 1*`parityprimipara` + 35*`age:parityprimipara` = 0",
+  "Person B" = "`(Intercept)` + 30*`age` + 0*`parityprimipara` + 30*`age:parityprimipara` = 0",
+  "Diff." = "`(Intercept)` + 35*`age` + 1*`parityprimipara` + 35*`age:parityprimipara` =
+            `(Intercept)` + 30*`age` + 0*`parityprimipara` + 30*`age:parityprimipara`"
+)
+
+## ## Tabel
+table_hyp <- hypotheses(model_mult1,
+                        hypothesis = hypotheses,
+                        df = model_mult1$df.residual) |> 
+  parameters(exponentiate = TRUE, digits = 1) |> 
+  as.data.frame() |> 
+  select("Hypothesis test" = Parameter, OR = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(OR, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(p < 0.001 ~ "< 0.001",
+                  p < 0.05  ~ "< 0.05",
+                  TRUE      ~ as.character(round(p, 3)))
+  )
+
+## ## Print
+table_hyp
+```
+**INTERPRETATION**
+
+*Person A has a significant higher odds* for post-term births ($\text{pdr}$) than Person B; this difference is, however, not statistically significant (p `r table_hyp$p[3]`).
+
+
+
+
+

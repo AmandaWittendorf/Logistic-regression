@@ -1,0 +1,117 @@
+---
+title: "Simple logistic regression"
+author: "Amanda Wittendorf"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+# SIMPLE LOGISTIC REGRESSION 
+
+Here the dataset *perulung.csv* is examinated. It contains
+measurements from 636 Peruvian children. More specifically: 
+
+- $\text{FEV1}$: Forceret Ekspiratorisk Volumen in the 1. secound 
+
+- $\text{height}$: childrens height (cm) 
+
+- $\text{age}$: childrens age (year) 
+
+- $\text{sex}$: gender (0 = girls / 1 = boys)
+
+- $\text{respsymptoms}$: measured respiratory symptoms within the past year (0 = no / 1 = yes)
+
+```{r}
+perulung <- read.csv("perulung.csv")
+glimpse(perulung)
+```
+
+The variables $\text{sex}$ and $\text{respsymptoms}$ needs to be recoded
+so it's easier to use later
+
+```{r}
+perulung <- perulung |> 
+  mutate(sex = factor(sex,
+                      levels = c(0, 1), 
+                      labels = c("Girls", "Boys")),
+         sex = fct_relevel(sex, "Boys"),
+         respsymptoms = factor(respsymptoms,
+                               levels = c(0, 1),
+                               labels = c("No", "Yes")),
+         respsymptoms = fct_relevel(respsymptoms, "Yes"))
+```
+
+
+## TASK A
+
+
+We will continue with the dataset *perulung.csv* from the previous task 
+
+### a. Compare the prevalence of $\text{respsymptoms}$ between the two sexes 
+
+Because the $\text{sex}$ is a factor the output of a regression model vil only show the reference group ($\text{Intercept} = {sex}_{boys}$) and the difference between the two sexes ($\text{sex}_{girls} = {sex}_{difference}$). Therefore, an additional *linear combination* needs to bee calculated - otherwise the result for $\text{sex}_{girls}$ will not be calculated.
+
+Compared to the previous regression model this one is going to be a logistic regression model because the outcome is a factor instead of a continouse variable. 
+
+```{r}
+# Reference group ($\text{Intercept} = {sex}_{boys}$) & difference
+table_2 <- list(
+  "Model 2" = glm(respsymptoms ~ sex, data = perulung, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |> 
+  bind_rows(.id = "Table 2: Simple logistic regression") |> 
+  select("Table 2: Simple logistic regression" = Parameter, 
+         Estimate = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+
+# Other group ($\text{sex}_{girls}$)
+tabel_hyp <- list(
+  "sexBoys" = hypotheses(reg_model, hypothesis = "`(Intercept)` + sexGirls = 0", df = reg_model$df.residual) |> parameters() |> as.data.frame() 
+  ) |> 
+  bind_rows(.id = "Table: Linear combination") |> 
+  select("Table: Linear combination" = Parameter, 
+         Estimate = Coefficient, SE, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, SE, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    ),
+    "Table: Linear combination" = case_match("Table: Linear combination",
+                           "(Intercept)`+sexGirls=0" ~ "Respsymptom, boys",
+    .default = "sexBoys")
+    )
+
+# Combining the two calculations
+collect_list <- list(
+  "Odds: Boys (Intercept)" = glm(respsymptoms ~ sex, 
+                             data = perulung, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame() |> slice(1),
+  "Odds ratio: Girls vs. Boys"  = glm(respsymptoms ~ sex, 
+                             data = perulung, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame() |> slice(2),
+  "Odds: Girls"  = hypotheses(reg_model, hypothesis = "`(Intercept)` + sexGirls = 0", 
+                                    df = reg_model$df.residual) |> parameters(exponentiate = TRUE) |> as.data.frame()
+  ) |>  bind_rows(.id = "Parameter") |> 
+  select("Table 2: Simple logistic regression" = Parameter, Estimate = Coefficient, SE, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(Estimate, SE, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(
+      p < 0.001 ~ "< 0.001",
+      p < 0.05  ~ "< 0.05",
+      TRUE      ~ as.character(round(p, 3))
+    )
+  )
+  
+# Print 
+collect_list
+```
+**Intercept:** Represents $\text{odds}_{boys}$ in which boys with *respiratory symptoms* are compared to boys *without respiratory symptoms*. The results show, that the odds is `r collect_list$Estimate[1]` (95% CI: [`r collect_list$CI_low[1]`; `r collect_list$CI_high[1]`], *p* `r collect_list$p[1]`). This means that among boys, the likelihood of having *respiratory symptoms* is highly statistically significant, with `r collect_list$Estimate[1]` boys experiencing symptoms for every 1 boy who does not.
+
+**Odds: Girls:** Like the above, this represents $\text{odds}_{girls}$ in which boys with *respiratory symptoms* are compared to girls *without respiratory symptoms*. The results show, that the odds is `r collect_list$Estimate[3]` (95% CI: [`r collect_list$CI_low[3]`; `r collect_list$CI_high[3]`], *p* `r collect_list$p[3]`). This means that among girls, the likelihood of having *respiratory symptoms* is not statistically significant, with `r collect_list$Estimate[3]` girls experiencing symptoms for every 1 girl who does not.
+
+**Odds ratio: Girls vs. Boys:** Here, the two odds, ($\text{sex}_{girls}$ divided by $\text{odds}_{boys}$, are compared (`r collect_list$Estimate[2]` (95% CI: [`r collect_list$CI_low[2]`; `r collect_list$CI_high[2]`], *p* `r collect_list$p[2]`)). It shows, that girls have `r collect_list$Estimate[2]` lower odds for *respiratory symptoms* than boys - this is not significantly. 
+
