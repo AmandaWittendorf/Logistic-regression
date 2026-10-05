@@ -5,6 +5,7 @@ date: '`r Sys.Date()`'
 output: html_document
 ---
 
+<<<<<<< HEAD
 ```{r Pre-setting_plots, message=FALSE, warning=FALSE, include=FALSE}
 # PRE-SETTING FOR THEMES IN PLOTS 
 library(ggplot2)
@@ -27,6 +28,8 @@ theme_set(standard_tema)
 ```
 
 
+=======
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ## 1. DESKRIPTION ON THE DATASET
 
 The dataset contains information on post-term birth for 12311 parturient women. More specifically: 
@@ -73,7 +76,11 @@ table_1 <- list(
     )
   )
 ```
+<<<<<<< HEAD
 ```{r table_ptd_age, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+=======
+```{r table_ptd_age, echo=FALSE, message=FALSE, warning=FALSE}
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 library(stargazer)
 
 ## Models
@@ -86,9 +93,15 @@ p_values  <- summary(model)$coefficients[, 4]
 
 ## Table
 stargazer(model, 
+<<<<<<< HEAD
           type = "html",                  
           coef = list(OR_vector), 
           title = "Table 1: Association between post-term birth and maternal age",
+=======
+          type = "text",                  
+          coef = list(OR_vector), 
+          title = "Table 1: Association between post-term birth (ref. = No) & maternal age",
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
           ci = TRUE,                      
           ci.custom = list(CI_vector),    
           p = list(p_values),           
@@ -96,9 +109,14 @@ stargazer(model,
           covariate.labels = c("Maternal age (year)", "Intercept"),
           digits = 2,
           star.cutoffs = c(0.05, 0.01, 0.001), 
+<<<<<<< HEAD
           keep.stat = c("n"),
           notes = c("Post-term birth (ref. = No)")
           )
+=======
+          keep.stat = c("n")
+)
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ```
 **INTREPETATION**
 
@@ -113,6 +131,7 @@ For each year the maternal age increases, the odds for having a post-term birth 
 
 To calculate this, the `hypotheses()`-function is used without including the intercept. This is because we are evaluating the relative effect of a 10-year age difference rather than an absolute value. Conversely, if we were to predict the specific odds or probability for an individual case, the intercept would be required.
 
+<<<<<<< HEAD
 ```{r names_model, message=FALSE, warning=FALSE, include=FALSE}
 coefficients(model)
 ```
@@ -120,17 +139,28 @@ coefficients(model)
 library(knitr)
 library(kableExtra) 
 
+=======
+```{r names_coefficients, message=FALSE, warning=FALSE, include=FALSE}
+coefficients(model)
+```
+```{r hypothesis_test, echo=FALSE, message=FALSE, warning=FALSE}
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ## ## Hypothesis
 hypotheses <- c(
   "Age difference, 10 years" = "10*age = 0"
 )
 
+<<<<<<< HEAD
 ## Tabel
+=======
+## ## Tabel
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 table_hyp <- hypotheses(model,
                         hypothesis = hypotheses,
                         df = model$df.residual) |> 
   parameters(exponentiate = TRUE, digits = 1) |> 
   as.data.frame() |> 
+<<<<<<< HEAD
   select(Parameter, OR = Coefficient, 
          "Lower limits" = CI_low, 
          "Upper limits" = CI_high, p) |> 
@@ -148,6 +178,18 @@ table_hyp1 <- table_hyp |>
         caption = "Table 2: Hypothesis test") |> 
   kable_classic(full_width = FALSE, html_font = "Cambria")
 table_hyp1
+=======
+  select("Hypothesis test" = Parameter, OR = Coefficient, CI_low, CI_high, p) |> 
+  mutate(
+    across(c(OR, CI_low, CI_high), ~ round(.x, 2)),
+    p = case_when(p < 0.001 ~ "< 0.001",
+                  p < 0.05  ~ "< 0.05",
+                  TRUE      ~ as.character(round(p, 3)))
+  )
+
+## ## Print
+table_hyp
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ```
 **INTERPRETATION**
 
@@ -155,6 +197,7 @@ The odds of having a post-term birth is significantly higher when comparing moth
 
 The p-value remains the same when comparing the exposure ($\text{age}$) and the predicted value ($\text{age}_{diff(10)}$) because both tests evaluate the same underlying hypothesis: *whether maternal age is associated with post-term birth* 
 
+<<<<<<< HEAD
 #### 2.1.2 Assessment of the linearity assumption (on the log-odds scale)
 
 > Linearity assumption
@@ -214,6 +257,8 @@ ggplot(data = sum_data,
 
 **In conclusion, a one-unit difference in the maternal age has the same effect regardless of the baseline value of the variable.**
 
+=======
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 
 ## 3. MULTIPLE LOGISTIC REGRESSION MODEL
 
@@ -237,7 +282,11 @@ table_2 <- list(
     )
   )
 ```
+<<<<<<< HEAD
 ```{r table_multi, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+=======
+```{r table_multi, echo=FALSE, message=FALSE, warning=FALSE}
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 library(stargazer)
 
 ## Models
@@ -250,7 +299,11 @@ p_mult  <- summary(model_mult)$coefficients[, 4]
 
 ## Table
 stargazer(model, model_mult, 
+<<<<<<< HEAD
           type = "html",                  
+=======
+          type = "text",                  
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
           coef = list(OR_vector, OR_mult), 
           title = "Table 2: Comparing the simple & multiple model for the association between post-term birth (ref. = No) & maternal age, adjusted for parity",
           column.labels = c("Simple model", "Multiple model"),
@@ -269,11 +322,19 @@ stargazer(model, model_mult,
 
 The purpose of this section is to evaluate if *($\text{parity}$) is a confounder for the association*. 
 
+<<<<<<< HEAD
 ```{r confounding_mult_plot, echo=FALSE, message=FALSE, warning=FALSE}
 ## Collecting the prediction values
 plot_data <- plot_predictions(model_mult,
                               condition = list("age", "parity"),
                               type = "response",   # <- Predicted values
+=======
+```{r confounding_plot, echo=FALSE, message=FALSE, warning=FALSE}
+## Collecting the prediction values (Husk at bruge din opdaterede model her)
+plot_data <- plot_predictions(model_mult,
+                              condition = list("age", "parity"),
+                              type = "response",
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
                               df = model_mult$df.residual,
                               draw = FALSE)
 
@@ -297,7 +358,18 @@ ggplot(plot_data,
        x = "Maternal age (year)",
        y = "Predicted Probability of prd",
        color = "Parity", fill = "Parity", 
+<<<<<<< HEAD
        caption = "Dataset: postterm.csv")
+=======
+       caption = "Dataset: postterm.csv") + 
+  
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(face = "italic", size = 12)
+  )
+
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ```
 
 **INTERPRETATION**
@@ -312,7 +384,11 @@ To evaluate if parity status have an effect modification on the association, an 
 **The model**
 $$\text{ptd} = \beta_\text{0} + \beta_\text{1} \cdot \text{age} + \beta_\text{2} \cdot \text{parity} + \beta_\text{3} \cdot \text{parity} \cdot \text{age}$$
 
+<<<<<<< HEAD
 ```{r regression_int, message=FALSE, warning=FALSE, include=FALSE}
+=======
+```{r regression_multi1, message=FALSE, warning=FALSE, include=FALSE}
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 table_3 <- list(
   "Model" = glm(ptd ~ age * parity, data = post, family = binomial) |> parameters(exponentiate = TRUE) |> as.data.frame()
   ) |> 
@@ -329,7 +405,11 @@ table_3 <- list(
   )
 table_3
 ```
+<<<<<<< HEAD
 ```{r table_int, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+=======
+```{r table_multi1, echo=FALSE, message=FALSE, warning=FALSE}
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 library(stargazer)
 
 ## Models
@@ -342,7 +422,11 @@ p_mult1  <- summary(model_mult1)$coefficients[, 4]
 
 ## Table
 stargazer(model, model_mult1, 
+<<<<<<< HEAD
           type = "html",                  
+=======
+          type = "text",                  
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
           coef = list(OR_vector, OR_mult1), 
           title = "Table 3: Comparing the simple & mult1iple model for the association between post-term birth (ref. = No) & maternal age, with a interactive term between age and parity",
           column.labels = c("Simple model", "Mult1iple model"),
@@ -357,10 +441,17 @@ stargazer(model, model_mult1,
 )
 ```
 ```{r effect_modification_plot, echo=FALSE, message=FALSE, warning=FALSE}
+<<<<<<< HEAD
 ## Collecting the prediction values 
 plot_data <- plot_predictions(model_mult1,
                               condition = list("age", "parity"),
                               type = "response",   # <- Predicted values 
+=======
+## Collecting the prediction values (Husk at bruge din opdaterede model her)
+plot_data <- plot_predictions(model_mult1,
+                              condition = list("age", "parity"),
+                              type = "response",
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
                               df = model_mult1$df.residual,
                               draw = FALSE)
 
@@ -379,12 +470,27 @@ ggplot(plot_data,
     values = c("primipara" = "#E6A15C", "multipara" = "#1F3A52"),
     labels = c("primipara" = "Primiparous (=1)", "multipara" = "Multiparous (>1)")) + 
   
+<<<<<<< HEAD
   labs(title = "Figure 2: Predicted Probability of post-term birth (prd)",
+=======
+  labs(title = "Figure 1: Predicted Probability of post-term birth (prd)",
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
        subtitle = "Based on Maternal Age & Parity",
        x = "Maternal age (year)",
        y = "Predicted Probability of prd",
        color = "Parity", fill = "Parity", 
+<<<<<<< HEAD
        caption = "Dataset: postterm.csv")
+=======
+       caption = "Dataset: postterm.csv") + 
+  
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(face = "italic", size = 12)
+  )
+
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ```
 
 **INTERPRETATION**
@@ -392,6 +498,7 @@ ggplot(plot_data,
 Table 3 shows that there is no effect modification between parity status and the association between maternal age and post-term birth. The interaction term is not statistically significant, with an $\text{OR}_{interactive}$, `r table_3$Odds[4]` (`r table_3$CI_low[4]`; `r table_3$CI_high[4]`, p `r table_3$p[4]`). 
 
 
+<<<<<<< HEAD
 #### 3.1.3 LINEAR EFFECT ON LOG(ODDS)-SCALE
 
 Given the absence of effect modification by parity status, the linear effect of maternal age on the log-odds scale was subsequently evaluated. To achieve this, a quadratic term was incorporated into the model using the `I()`-function.
@@ -486,24 +593,41 @@ In addition, while *Figure 3 displays a visual curvature* on the log-odds scale,
 coefficients(model_mult1)
 ```
 ```{r hypothesis_mult_groups, echo=FALSE, message=FALSE, warning=FALSE}
+=======
+#### 3.1.3. The effect of maternal age ($\text{age}$) for each of the two parity groups ($\text{parity}$).
+
+```{r names_coefficients_mult, message=FALSE, warning=FALSE, include=FALSE}
+coefficients(model_mult1)
+```
+```{r hypothesis_test_mult, echo=FALSE, message=FALSE, warning=FALSE}
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ## ## Hypothesis
 hypotheses <- c(
   "Primiparaous (=1)" = "age = 0",
   "Multiparaous (>1)" = "age + `age:parityprimipara` = 0" 
 )
 
+<<<<<<< HEAD
 ## Tabel
+=======
+## ## Tabel
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 table_hyp <- hypotheses(model_mult1,
                         hypothesis = hypotheses,
                         df = model_mult1$df.residual) |> 
   parameters(exponentiate = TRUE, digits = 1) |> 
   as.data.frame() |> 
+<<<<<<< HEAD
   select(Parameter, OR = Coefficient, CI_low, CI_high, p) |> 
+=======
+  select("Hypothesis test" = Parameter, OR = Coefficient, CI_low, CI_high, p) |> 
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
   mutate(
     across(c(OR, CI_low, CI_high), ~ round(.x, 2)),
     p = case_when(p < 0.001 ~ "< 0.001",
                   p < 0.05  ~ "< 0.05",
                   TRUE      ~ as.character(round(p, 3)))
+<<<<<<< HEAD
   ) 
   
 
@@ -513,6 +637,12 @@ table_hyp1 <- table_hyp |>
   kable(format = "html", align = "lr", 
         caption = "Table 5: Hypothesis test") |> 
   kable_classic(full_width = FALSE, html_font = "Cambria")
+=======
+  )
+
+## ## Print
+table_hyp
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ```
 **INTERPRETATION**
 
@@ -525,7 +655,12 @@ For multiparous mothers the odds increases significantly for post-term births wi
 The small difference between the two parity groups is a reflection of the non-significant effect modification shown in *table 3*. 
 
 
+<<<<<<< HEAD
 #### 3.1.5. THE SPECIFIC EFFECT
+=======
+
+#### 3.1.4. The specific effect for two women
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 
 Unlike in *Section 2.1.1*, the intercept is included here because we are calculating the specific odds for two individual profiles.
 
@@ -533,7 +668,11 @@ a. A 35-year-old multiparous woman.
 
 b. A 30-year-old primiparous woman.
 
+<<<<<<< HEAD
 ```{r hypothesis_specific, echo=FALSE, message=FALSE, warning=FALSE}
+=======
+```{r hypothesis_test1, echo=FALSE, message=FALSE, warning=FALSE}
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ## ## Hypothesis
 hypotheses <- c(
   "Person A" = "`(Intercept)` + 35*`age` + 1*`parityprimipara` + 35*`age:parityprimipara` = 0",
@@ -554,6 +693,7 @@ table_hyp <- hypotheses(model_mult1,
     p = case_when(p < 0.001 ~ "< 0.001",
                   p < 0.05  ~ "< 0.05",
                   TRUE      ~ as.character(round(p, 3)))
+<<<<<<< HEAD
   ) 
   
 ## Print
@@ -562,12 +702,19 @@ table_hyp1 <- table_hyp |>
   kable(format = "html", align = "lr", 
         caption = "Table 5: Hypothesis test") |> 
   kable_classic(full_width = FALSE, html_font = "Cambria")
+=======
+  )
+
+## ## Print
+table_hyp
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 ```
 **INTERPRETATION**
 
 *Person A has a significant higher odds* for post-term births ($\text{pdr}$) than Person B; this difference is, however, not statistically significant (p `r table_hyp$p[3]`).
 
 
+<<<<<<< HEAD
 ### 3.2.  ASSOCIATION BETWEEN STATUS FOR POST-TERM BIRTH ($\text{ptd}$) & CATAGORIZED MATERNAL AGE ($\text{age}_{group}$) ADJUSTED FOR PARITY ($\text{parity}$)
 
 To choose the right categorization a histogram is made to get a overview of the distruption 
@@ -887,6 +1034,8 @@ Consistent with the overall linear trend observed prior to categorization, older
 
 
 
+=======
+>>>>>>> 573bfc5ef25428e20446f9a7f61d6f55796b3f69
 
 
 
